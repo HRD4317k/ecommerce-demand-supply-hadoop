@@ -1,7 +1,0 @@
-requests
-pandas
-numpy
-mlxtend
-streamlit
-plotly
-pyarrow

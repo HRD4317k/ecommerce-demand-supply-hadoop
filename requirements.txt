@@ -1,9 +1,0 @@
-streamlit>=1.36
-pandas
-numpy
-plotly
-duckdb
-mlxtend
-statsmodels
-scikit-learn
-xgboost
