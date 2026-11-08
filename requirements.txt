@@ -1,0 +1,6 @@
+# analysis layer + report + tests (the MapReduce jobs themselves use only the Python standard library)
+pandas>=2.0
+numpy>=1.26
+scipy>=1.9
+matplotlib>=3.7
+pytest>=7.0

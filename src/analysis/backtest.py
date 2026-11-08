@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Forecast backtest (idea 1): which method predicts demand best?
+
+Rolling-origin evaluation.  For each origin date T (the last ``--origins`` possible days)
+and each SKU-warehouse series, every method forecasts the next ``--horizon`` days using
+only data up to T; the forecast is compared with what actually happened.
+
+Metrics
+  wape_daily  sum |forecast - actual| / sum actual           (day by day; noisy by nature)
+  wape_week   same, but on the total over the horizon per series (what ordering decisions use)
+  bias        (sum forecast - sum actual) / sum actual       (negative = under-forecasting)
+
+Origins are bucketed against the sale start so the effect of a demand shock is visible:
+  pre-sale    the whole horizon is before the sale
+  sale-shock  the sale starts inside the horizon (no method can see it coming)
+  in-sale     the origin is already inside the sale
+"""
+import argparse
+import datetime as dt
+import json
+import os
+import sys
+
+import pandas as pd
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "jobs"))
+from forecast import METHODS, dense, forecast  # noqa: E402
+from io_utils import read_daily  # noqa: E402
+
+
+def build_series(daily):
+    series = {}
+    for sku, wh, date, net in zip(daily["sku"], daily["warehouse"], daily["date"], daily["net"]):
+        series.setdefault((sku, wh), {})[date] = float(net)
+    return series
+
+
+def bucket_of(origin, horizon, sale_start):
+    if origin >= sale_start:
+        return "in-sale"
+    if origin + dt.timedelta(days=horizon) >= sale_start:
+        return "sale-shock"
+    return "pre-sale"
+
+
+def run_backtest(daily, sale_start, horizon=7, origins=28, methods=METHODS):
+    series = build_series(daily)
+    as_of = dt.date.fromisoformat(max(daily["date"]))
+    sale_start = dt.date.fromisoformat(sale_start)
+    records = []
+    for k in range(origins):
+        origin = as_of - dt.timedelta(days=horizon + k)
+        bucket = bucket_of(origin, horizon, sale_start)
+        for key, s in series.items():
+            _, actual = dense(s, horizon, (origin + dt.timedelta(days=horizon)).isoformat())
+            for method in methods:
+                f = forecast(s, horizon, method, origin.isoformat())
+                records.append((method, bucket, sum(abs(a - b) for a, b in zip(f, actual)),
+                                abs(sum(f) - sum(actual)), sum(f) - sum(actual), sum(actual)))
+    frame = pd.DataFrame(records, columns=["method", "bucket", "abs_daily", "abs_week", "signed", "actual"])
+    rows = []
+    for (method, bucket), g in list(frame.groupby(["method", "bucket"])) + \
+            [((m, "all"), g) for m, g in frame.groupby("method")]:
+        total = g["actual"].sum()
+        rows.append({"method": method, "bucket": bucket, "wape_daily": g["abs_daily"].sum() / total,
+                     "wape_week": g["abs_week"].sum() / total, "bias": g["signed"].sum() / total,
+                     "n_forecasts": len(g)})
+    return pd.DataFrame(rows).sort_values(["bucket", "wape_week"]).reset_index(drop=True)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--daily", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--sale-start", required=True)
+    ap.add_argument("--horizon", type=int, default=7)
+    ap.add_argument("--origins", type=int, default=28)
+    a = ap.parse_args()
+    result = run_backtest(read_daily(a.daily), a.sale_start, a.horizon, a.origins)
+    result.round(4).to_csv(os.path.join(a.out, "backtest.csv"), index=False)
+    overall = result[result.bucket == "all"].sort_values("wape_week")
+    best = overall.iloc[0]["method"]
+    with open(os.path.join(a.out, "backtest_summary.json"), "w") as handle:
+        json.dump({"best_method_overall": best, "horizon_days": a.horizon, "origins": a.origins}, handle, indent=2)
+    print(overall.round(3).to_string(index=False))
+    print(f"best overall (7-day total WAPE): {best}")
+
+
+if __name__ == "__main__":
+    main()
