@@ -12,12 +12,13 @@ FROM (
   FROM (
     SELECT supplier_id,
            COUNT(*) AS n_pos,
-           AVG(CASE WHEN delivered_date <= promised_date THEN 1.0 ELSE 0.0 END) AS on_time_rate,
-           AVG(datediff(delivered_date, promised_date)) AS avg_delay_days,
-           AVG(datediff(delivered_date, order_date)) AS lead_mean,
-           STDDEV_POP(datediff(delivered_date, order_date)) AS lead_std,
+           -- lines with no delivered date (cancelled orders) count against the fill rate only
+           AVG(CASE WHEN d_date IS NULL THEN NULL WHEN d_date <= promised_date THEN 1.0 ELSE 0.0 END) AS on_time_rate,
+           AVG(datediff(d_date, promised_date)) AS avg_delay_days,
+           AVG(datediff(d_date, order_date)) AS lead_mean,
+           STDDEV_POP(datediff(d_date, order_date)) AS lead_std,
            SUM(qty_received) / SUM(qty_ordered) AS fill_rate
-    FROM deliveries
+    FROM (SELECT *, NULLIF(delivered_date, '') AS d_date FROM deliveries) x
     GROUP BY supplier_id
   ) s
 ) t;

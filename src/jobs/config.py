@@ -16,6 +16,7 @@ def _get(name, default, cast=str):
 AS_OF = _get("AS_OF", "")
 # First day of the festive sale (idea 5).
 SALE_START = _get("SALE_START", "2026-10-25")
+SALE_END = _get("SALE_END", "")                 # last sale day; empty = until AS_OF / last day of data
 # Days before the sale used as the uplift baseline (4 full weeks = 4 samples per weekday).
 BASELINE_DAYS = _get("BASELINE_DAYS", 28, int)
 

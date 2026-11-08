@@ -4,7 +4,7 @@
 Output: SCOPE|name <TAB> base_avg_day,sale_avg_day,plain_ratio,uplift,sale_days
 
   base window    the BASELINE_DAYS days before SALE_START (default 28 = 4 full weeks)
-  sale window    SALE_START up to the last day of data
+  sale window    SALE_START up to SALE_END (default: AS_OF, else the last day of data)
   plain_ratio    average units/day in the sale window / average units/day in the base window
   uplift         weekday-adjusted: each sale day is divided by the baseline average of ITS OWN
                  weekday before averaging, so a sale window with more weekends than weekdays
@@ -14,7 +14,7 @@ import datetime as dt
 import sys
 from statistics import mean
 
-from config import AS_OF, BASELINE_DAYS, SALE_START
+from config import AS_OF, BASELINE_DAYS, SALE_END, SALE_START
 
 
 def daterange(start, end):
@@ -51,7 +51,7 @@ def main():
     def flush():
         if current is None:
             return
-        end = AS_OF or max(daily)
+        end = SALE_END or AS_OF or max(daily)
         result = compute(daily, SALE_START, BASELINE_DAYS, end)
         if result:
             base, sale, plain, uplift, days = result

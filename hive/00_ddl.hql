@@ -1,5 +1,6 @@
 -- Hive tables over the raw files that scripts/run_hadoop.sh puts on HDFS.
 -- Reference SQL: these scripts mirror the MapReduce jobs but were NOT executed in this repository.
+-- Column layouts match the files written by src/datagen/prepare_olist.py (real Olist data) and generate.py.
 -- Usage: hive -f hive/00_ddl.hql
 
 CREATE DATABASE IF NOT EXISTS ecom;

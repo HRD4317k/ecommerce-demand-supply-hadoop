@@ -13,6 +13,7 @@ a small analysis layer (backtest, rebalancing LP, alerts, report) runs on the co
 |------|-------|-------------------|-----|------|
 | Net daily demand | orders + returns | `daily_demand_map` -> `sum_reduce` | `sku\|warehouse\|date` | two inputs, told apart by `mapreduce_map_input_file`; `sum_reduce` is also the combiner |
 | Supplier scorecard | deliveries | `supplier_map` -> `supplier_reduce` | `supplier_id` | on-time, fill rate, observed lead mean/std, score, tier |
+| Backtest (local, small) | daily demand | `analysis/backtest.py` | series x origin | picks the forecast method before the gap job |
 | Gap engine | daily demand + inventory | `gap_map` -> `gap_reduce` | `sku\|warehouse` | reduce-side join (D/I tags); supplier stats via distributed cache (map-side join) |
 | Festive uplift | orders | `uplift_map` -> `uplift_reduce` | `CAT\|..`, `SKU\|..` | weekday-adjusted vs the 28 days before the sale |
 | Bundles | orders | 3 chained jobs | basket -> pair -> pair | counts, then support / confidence / lift in a single-reducer stage |
@@ -20,8 +21,8 @@ a small analysis layer (backtest, rebalancing LP, alerts, report) runs on the co
 
 ## Decisions
 
-- **Forecast default is `naive7`.** Six methods are backtested (rolling origin, 7-day horizon); the simplest one won on the
-  synthetic data. `FORECAST_METHOD` switches it; re-run the backtest on real data.
+- **The forecast method is chosen by the data.** Six methods are backtested (rolling origin, 7-day horizon) and the winner
+  drives the gap engine: `naive7` on the synthetic data, `ma28` on the real Olist data. `FORECAST_METHOD` overrides it.
 - **Safety stock uses observed lead time**, `SS = z * sqrt(L*sd_d^2 + d^2*sd_L^2)`, not the supplier's quote.
 - **Risk labels**: CRITICAL if on-hand < lead-time demand and inventory position < reorder point; WATCH if position < ROP;
   OVERSTOCK if cover > 45 days; otherwise OK.

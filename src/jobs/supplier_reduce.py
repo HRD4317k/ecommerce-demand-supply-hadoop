@@ -24,11 +24,15 @@ def tier_of(score):
 
 
 def summarise(rows):
-    leads = [r[0] for r in rows]
-    delays = [r[1] for r in rows]
+    """rows: (lead, delay, qty_ordered, qty_received); lead/delay are None for unfulfilled lines."""
+    done = [r for r in rows if r[0] is not None]
+    if not done:
+        return None                                   # nothing delivered: no lead-time statistics to report
+    leads = [r[0] for r in done]
+    delays = [r[1] for r in done]
     ordered = sum(r[2] for r in rows)
     received = sum(r[3] for r in rows)
-    on_time = sum(1 for d in delays if d <= 0) / len(rows)
+    on_time = sum(1 for d in delays if d <= 0) / len(done)
     fill = received / ordered if ordered else 0.0
     lead_mean, lead_std = mean(leads), pstdev(leads)
     score = score_of(on_time, fill, lead_mean, lead_std)
@@ -36,18 +40,25 @@ def summarise(rows):
             f"{fill:.3f},{score:.1f},{tier_of(score)}")
 
 
+def emit(key, rows):
+    if key is None:
+        return
+    line = summarise(rows)
+    if line:
+        print(f"{key}\t{line}")
+
+
 def main():
     current, rows = None, []
     for line in sys.stdin:
         key, _, value = line.rstrip("\n").partition("\t")
         if key != current:
-            if current is not None:
-                print(f"{current}\t{summarise(rows)}")
+            emit(current, rows)
             current, rows = key, []
         lead, delay, qo, qr = value.split(",")
-        rows.append((int(lead), int(delay), int(qo), int(qr)))
-    if current is not None:
-        print(f"{current}\t{summarise(rows)}")
+        rows.append((None if lead == "NA" else int(lead), None if delay == "NA" else int(delay),
+                     int(qo), int(qr)))
+    emit(current, rows)
 
 
 if __name__ == "__main__":

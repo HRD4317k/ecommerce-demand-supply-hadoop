@@ -1,5 +1,5 @@
 -- Idea 5: weekday-adjusted festive-sale uplift per category (same maths as src/jobs/uplift_reduce.py).
--- Usage: hive --hivevar sale_start=2026-10-25 --hivevar as_of=2026-11-08 -f hive/30_festive_uplift.hql
+-- Usage: hive --hivevar sale_start=2017-11-24 --hivevar sale_end=2017-11-30 -f hive/30_festive_uplift.hql
 USE ecom;
 
 CREATE TABLE IF NOT EXISTS festive_uplift STORED AS ORC AS
@@ -25,7 +25,7 @@ base_all AS (
 sale AS (
   SELECT category, dow, units
   FROM daily
-  WHERE d >= '${hivevar:sale_start}' AND d <= '${hivevar:as_of}'
+  WHERE d >= '${hivevar:sale_start}' AND d <= '${hivevar:sale_end}'
 )
 SELECT s.category,
        ba.base_avg AS base_avg_day,

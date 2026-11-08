@@ -97,11 +97,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--gap", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--lanes", help="JSON list of [from, to, cost_per_unit, days]")
+    ap.add_argument("--lanes", help="JSON file: list of [from, to, cost_per_unit, days]")
+    ap.add_argument("--meta", help="data/meta.json; its \"lanes\" entry is used when --lanes is not given")
     a = ap.parse_args()
     lanes = DEFAULT_LANES
-    if a.lanes:
-        lanes = {(x[0], x[1]): (float(x[2]), int(x[3])) for x in json.load(open(a.lanes))}
+    raw = json.load(open(a.lanes)) if a.lanes else (json.load(open(a.meta)).get("lanes") if a.meta else None)
+    if raw:
+        lanes = {(x[0], x[1]): (float(x[2]), int(x[3])) for x in raw}
     gap = read_gap(a.gap)
     transfers = rebalance(gap, lanes)
     transfers.to_csv(os.path.join(a.out, "transfers.csv"), index=False)
@@ -111,7 +113,7 @@ def main():
     with open(os.path.join(a.out, "rebalance_summary.json"), "w") as handle:
         json.dump(summary, handle, indent=2)
     print(f"rebalancing: {summary['transfers']} transfers, {summary['units_moved']} units, "
-          f"freight Rs {summary['freight_cost']:.0f}, {summary['skus_helped']} SKUs helped")
+          f"freight cost {summary['freight_cost']:.0f}, {summary['skus_helped']} SKUs helped")
 
 
 if __name__ == "__main__":
