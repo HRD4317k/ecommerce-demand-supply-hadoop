@@ -117,7 +117,7 @@ def main():
     ax.set_xticklabels([j["label"] for j in comb], rotation=18, ha="right", fontsize=8)
     ax.set_ylabel("records")
     ax.set_title("What the combiner saves the shuffle (Hadoop counters)", fontsize=11)
-    ax.legend(frameon=False, fontsize=8)
+    ax.legend(frameon=False, fontsize=8, loc="upper left")
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
     fig.tight_layout()
