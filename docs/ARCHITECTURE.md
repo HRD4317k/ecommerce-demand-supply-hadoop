@@ -29,8 +29,17 @@ a small analysis layer (backtest, rebalancing LP, alerts, report) runs on the co
 - **Rebalancing** only uses a lane when the transfer is faster than the recipient's supplier lead time; unmet need carries a large penalty.
 - **Returns** are subtracted on the day they arrive back, so the most recent days look slightly better than they will.
 
-## Running on a cluster
+## Running on Hadoop
 
 `scripts/run_hadoop.sh` uploads the data to HDFS, runs each job with `hadoop jar hadoop-streaming-*.jar`, ships the shared
 modules and `supplier_stats.tsv` with `-files`, passes configuration with `-cmdenv`, and finally pulls the small results back
-for the analysis layer. It is untested; `hive/` holds reference HiveQL for the SQL-friendly steps.
+for the analysis layer. Every job is timed and Hadoop's counters are kept (`hadoop_job_times.tsv`, `hadoop_counters.log`).
+
+It has been run in **standalone mode** (`scripts/setup_hadoop_standalone.sh` builds Hadoop 3.3.4 from the official client
+jars plus the hadoop-streaming source): the real MapReduce engine, sort/shuffle, combiner and distributed cache, but one JVM
+and the local file system. All outputs equal the local runner's. It has not been run on a multi-node HDFS/YARN cluster.
+`hive/` holds the HiveQL for the SQL-friendly steps; it was run with Spark SQL, not Apache Hive.
+
+Two things the standalone run taught that also apply on a cluster: (1) Hadoop symlinks every `-files` entry into the task
+directory and Python resolves symlinks, so tasks need `PYTHONPATH=.` to import the shared modules; (2) `TextOutputFormat`
+adds a trailing tab to output lines that contain none, which matters for CSV-shaped reducer output.

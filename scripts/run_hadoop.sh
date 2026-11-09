@@ -2,9 +2,10 @@
 # Runs the same pipeline as scripts/run_local.sh on a real Hadoop 3.x cluster (YARN + HDFS)
 # with Hadoop Streaming.
 #
-# NOTE: written against the Hadoop Streaming interface and mirrors run_local.sh job by job, but it
-# has NOT been executed on a cluster in this repository (only the local runner has).  Expect to adjust
-# paths, python3 availability on the worker nodes and queue settings for your cluster.
+# STATUS: executed end to end in Hadoop *standalone* mode (scripts/setup_hadoop_standalone.sh: real MapReduce
+# engine and Streaming, one JVM, local file system) with outputs identical to run_local.sh.  NOT run on a
+# multi-node HDFS/YARN cluster; expect to adjust paths, python3 on the worker nodes and queue settings there.
+# For the standalone run use a local directory as HDFS_BASE, e.g.  HDFS_BASE=$PWD/out/hdfs
 #
 # Requirements: hadoop + hdfs on PATH, python3 on every worker node, data generated locally
 # (make real) or your own files with the same columns.
@@ -31,7 +32,19 @@ ENV_FLAGS=(-cmdenv "AS_OF=$AS_OF" -cmdenv "SALE_START=$SALE_START" -cmdenv "SALE
 SHARED="$JOBS/config.py,$JOBS/schema.py,$JOBS/forecast.py,$JOBS/policy.py"
 
 # stream <extra generic opts...> -- <streaming opts...>   (generic options such as -D, -files must come first)
-stream() { hadoop jar "$STREAMING_JAR" "$@"; }
+# PYTHONPATH=. matters: Hadoop symlinks every -files entry into the task directory (each one from its own
+# localized folder), and Python resolves the symlink, so without it `import config` finds nothing.
+# Every job is timed; wall-clock seconds per job go to $OUT/hadoop_job_times.tsv.
+JOB_TIMES="$OUT/hadoop_job_times.tsv"; : > "$JOB_TIMES"
+stream() {
+  local out="" prev="" a t0 t1
+  for a in "$@"; do [ "$prev" = "-output" ] && out="$a"; prev="$a"; done
+  t0=$(date +%s.%N)
+  hadoop jar "$STREAMING_JAR" "$@" -cmdenv PYTHONPATH=. 2> >(tee -a "$OUT/hadoop_counters.log" >&2)
+  t1=$(date +%s.%N)
+  printf '%s\t%.1f\n' "$(basename "$out")" "$(echo "$t1 - $t0" | bc -l)" >> "$JOB_TIMES"
+}
+: > "$OUT/hadoop_counters.log"
 clean_out() { hdfs dfs -rm -r -f "$1" >/dev/null 2>&1 || true; }   # only this pipeline's own output dirs
 job_files() { local list="$SHARED"; for f in "$@"; do list="$list,$JOBS/$f"; done; echo "$list"; }
 
@@ -112,9 +125,14 @@ echo "[7] bring the (small) results back and run the analysis layer locally"
 hdfs dfs -getmerge "$BASE/curated/uplift" "$OUT/uplift.tsv"
 hdfs dfs -getmerge "$BASE/curated/bundles" "$OUT/bundles.tsv"
 hdfs dfs -getmerge "$BASE/curated/return_rates" "$OUT/return_rates.tsv"
+hdfs dfs -getmerge "$BASE/curated/pair_counts" "$OUT/pair_counts.tsv"
+if hdfs dfs -test -d "$BASE/curated/pair_counts_p"; then
+  hdfs dfs -getmerge "$BASE/curated/pair_counts_p" "$OUT/pair_counts_products.tsv"
+fi
 hdfs dfs -getmerge "$BASE/curated/gap_report" "$OUT/gap_raw.csv"
 { $PY -c "import sys; sys.path.insert(0, '$JOBS'); import schema; print(','.join(schema.GAP_FIELDS))"
-  LC_ALL=C sort "$OUT/gap_raw.csv"; } > "$OUT/gap_report.csv"
+  # TextOutputFormat appends a tab to lines that contain none (the CSV rows), so strip it again
+  sed 's/\t$//' "$OUT/gap_raw.csv" | LC_ALL=C sort; } > "$OUT/gap_report.csv"
 rm -f "$OUT/gap_raw.csv"
 export AS_OF SALE_START SALE_END
 "$PY" "$ROOT/src/analysis/rebalance.py" --gap "$OUT/gap_report.csv" --out "$OUT" --meta "$DATA/meta.json"

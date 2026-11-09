@@ -18,8 +18,9 @@ A synthetic generator is kept for demos and tests. What is real and what is assu
 ```bash
 pip install -r requirements.txt
 make real      # downloads Olist (~60 MB), prepares it, runs all 8 ideas, writes out/olist and reports/
-make test      # 38 tests; the real-data end-to-end test skips itself if the raw data is absent
+make test      # 40 tests; the real-data end-to-end test skips itself if the raw data is absent
 make demo      # optional: the same pipeline on synthetic data with planted patterns (no download)
+make hadoop-standalone   # builds Apache Hadoop 3.3.4 (standalone) and runs all 8 jobs through real Hadoop Streaming
 ```
 
 ## The 8 ideas, what they found on the real data, and where the code is
@@ -41,9 +42,10 @@ make demo      # optional: the same pipeline on synthetic data with planted patt
 src/datagen/      prepare_olist.py (real data -> pipeline files) and generate.py (synthetic demo data)
 src/jobs/         Hadoop Streaming mappers/reducers + shared logic (forecast, policy, config, schema)
 src/analysis/     backtest, rebalancing LP, alerts, report builder (pandas / scipy / matplotlib)
-scripts/          fetch_olist.sh, run_local.sh (tested), run_hadoop.sh (cluster version, NOT tested here)
-hive/             equivalent HiveQL, reference only (NOT executed here)
-tests/            38 pytest tests: each job, forecast, policy, LP, the Olist adapter, end-to-end on synthetic and real data
+scripts/          fetch_olist.sh, run_local.sh, run_hadoop.sh (Hadoop Streaming; run in standalone mode), setup_hadoop_standalone.sh,
+                  check_hive_sql.py (runs hive/*.hql with Spark SQL and compares with the MapReduce output)
+hive/             equivalent HiveQL (run with Spark SQL, not Apache Hive)
+tests/            40 pytest tests: each job, forecast, policy, LP, the Olist adapter, end-to-end on synthetic and real data
 docs/             DATA.md, ARCHITECTURE.md, the project-pack PDF, diagrams
 reports/          REPORT.md and charts generated from the real data (committed so you can read the results directly)
 REFERENCES.md     datasets, papers, books and software this work relies on
@@ -69,6 +71,15 @@ Environment variables, read in `src/jobs/config.py` (on a cluster pass them with
 ## What is and is not verified
 
 - Verified: the local pipeline end to end on real and synthetic data (`make real`, `make demo`, `make test`).
-- Not verified: `scripts/run_hadoop.sh` and `hive/*.hql` have never been run on a real cluster or Hive. They follow the
-  same job order and options as the local runner; expect to adjust paths and the Python setup on your nodes.
+- Verified: `scripts/run_hadoop.sh` ran all 11 Hadoop Streaming jobs on Apache Hadoop 3.3.4 in **standalone mode** and its
+  16 output files are identical to the local runner's (`make hadoop-standalone`; counters, timings and the file-by-file
+  comparison are in [`reports/HADOOP_RUN.md`](reports/HADOOP_RUN.md)). Running it found two real bugs that are now fixed:
+  Python could not import the shared modules inside a task (fixed with `PYTHONPATH=.`), and `TextOutputFormat` appends a
+  tab to CSV lines, which is stripped when the gap report is assembled.
+- Verified, with a caveat: `hive/*.hql` were executed with **Spark SQL (Hive support)**, not Apache Hive, and their tables
+  match the MapReduce outputs on 5 of 5 comparisons ([`reports/HIVE_CHECK.md`](reports/HIVE_CHECK.md)). That run exposed
+  a bug in `30_festive_uplift.hql` (days without orders were not counted as zero), now fixed.
+- Not verified: a multi-node cluster (HDFS + YARN). Standalone mode uses Hadoop's real MapReduce engine and Streaming
+  classes but runs every task in one JVM against the local file system, so it says nothing about scaling, data locality
+  or fault tolerance. Apache Hive itself was not run either.
 - The Olist data is licensed CC BY-NC-SA 4.0 (non-commercial, share-alike); it is not redistributed in this repository.

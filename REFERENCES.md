@@ -59,7 +59,15 @@ standard works cited from knowledge, so check them before quoting in a report.
 ## Software
 
 19. pandas, NumPy, SciPy, Matplotlib, pytest: the versions pinned in `requirements.txt` (all open source).
+20. Apache Hadoop 3.3.4 (Apache License 2.0). The standalone build in `scripts/setup_hadoop_standalone.sh` uses the official
+    `hadoop-client-api` / `hadoop-client-runtime` 3.3.4 jars as shipped inside the PySpark 3.5.1 source package on PyPI, and
+    compiles the `hadoop-streaming` source from the `rel/release-3.3.4` tag of <https://github.com/apache/hadoop>. The Apache
+    download mirrors and Maven Central were not reachable from the build environment, so these are not the Apache
+    binary tarball. SHA-256 of the jars used: hadoop-client-api-3.3.4.jar
+    `e513d71b78086b5caaa439f4402b43e20df01446d56b66084ad419452878701c`, hadoop-client-runtime-3.3.4.jar
+    `9377a68071137ae5f5c8cdc2ed20d6f904a1df4d06df26b47ed8872a1b0d8d47`; compare with the Apache release checksums.
+21. Apache Spark 3.5.1 (Apache License 2.0), used only to execute the HiveQL scripts (`scripts/check_hive_sql.py`).
 
 ## Project documents
 
-20. `docs/Hadoop_Demand_Supply_Project_Pack.pdf`: the idea pack this implementation follows (8 ideas, architecture, viva Q&A).
+22. `docs/Hadoop_Demand_Supply_Project_Pack.pdf`: the idea pack this implementation follows (8 ideas, architecture, viva Q&A).

@@ -1,5 +1,5 @@
 -- Hive tables over the raw files that scripts/run_hadoop.sh puts on HDFS.
--- Reference SQL: these scripts mirror the MapReduce jobs but were NOT executed in this repository.
+-- These scripts mirror the MapReduce jobs.  They were run with Spark SQL (Hive support), not Apache Hive: see scripts/check_hive_sql.py.
 -- Column layouts match the files written by src/datagen/prepare_olist.py (real Olist data) and generate.py.
 -- Usage: hive -f hive/00_ddl.hql
 

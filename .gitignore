@@ -8,3 +8,4 @@ out/
 
 # synthetic demo output (make demo)
 reports/synthetic/
+.hadoop/

@@ -4,3 +4,6 @@ numpy>=1.26
 scipy>=1.9
 matplotlib>=3.7
 pytest>=7.0
+# optional, only for `make hive-check` (runs the HiveQL with Spark SQL):
+# pyspark==3.5.1
+# py4j==0.10.9.7
